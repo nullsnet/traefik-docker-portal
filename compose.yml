@@ -1,0 +1,52 @@
+services:
+  traefik:
+    image: traefik:3.3
+    command:
+      - --providers.docker=true
+      - --providers.docker.endpoint=unix:///var/run/docker.sock
+      - --providers.docker.exposedByDefault=true
+      - --providers.docker.network=proxy
+      - --providers.docker.watch=true
+      - --providers.docker.defaultrule=Host(`{{ index .Labels "traefik.host" }}.example.com`)
+      - --api.insecure=true
+      - --api.dashboard=true
+    ports:
+      - 443:443
+    networks:
+      - proxy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    labels:
+      traefik.host: traefik
+      traefik.http.services.traefik.loadbalancer.server.port: 8080
+
+  site1:
+    image: nginx
+    labels:
+      traefik.host: site1
+      traefik.http.services.site1.loadbalancer.server.port: 80
+
+  site2:
+    image: nginx
+    labels:
+      traefik.host: site2
+      traefik.http.services.site1.loadbalancer.server.port: 80
+
+  traefik-docker-portal:
+    build:
+      context: .
+    environment:
+      DOMAIN_PREFIX: example.com
+    ports:
+      - 5001:5001
+    networks:
+      - proxy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    labels:
+      traefik.host: portal
+      traefik.http.services.portal.loadbalancer.server.port: 5001
+
+networks:
+  proxy:
+    external: true
