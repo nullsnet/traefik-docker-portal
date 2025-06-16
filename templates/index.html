@@ -16,7 +16,7 @@
     {% endif %}
     <ul>
         {% for service in services %}
-        <li><a href="{{ service.url }}" target="_blank">{{ service.name }}</a></li>
+        <li><a href="{{ service.url }}" target="{{ link_target }}">{{ service.name }}</a></li>
         {% else %}
         {% if not error %}
         <li>No services with 'traefik' host labels found.</li>

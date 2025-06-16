@@ -9,6 +9,7 @@ PORT = int(os.environ.get('PORTAL_PORT', 5001))
 DOMAIN_SUFFIX = os.environ.get('DOMAIN_SUFFIX', 'example.com')
 PAGE_TITLE = os.environ.get('PAGE_TITLE', 'Docker Container Portal')
 PAGE_HEADING = os.environ.get('PAGE_HEADING', 'Container Service Portal 🚀')
+LINK_TARGET = os.environ.get('LINK_TARGET', '_self')
 
 logging.basicConfig(level=os.environ.get('LOG_LEVEL', 'INFO').upper())
 app = Flask(__name__)
@@ -66,7 +67,7 @@ def get_services() -> tuple[list[dict[str, str]], str | None]:
 @app.route('/')
 def index():
     services, error = get_services()
-    return render_template('index.html', title=PAGE_TITLE, heading=PAGE_HEADING, services=services, domain=DOMAIN_SUFFIX, error=error)
+    return render_template('index.html', title=PAGE_TITLE, heading=PAGE_HEADING, services=services, domain=DOMAIN_SUFFIX, error=error, link_target=LINK_TARGET)
 
 
 if __name__ == '__main__':
