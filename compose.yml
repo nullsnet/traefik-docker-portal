@@ -1,6 +1,6 @@
 services:
   traefik:
-    image: traefik:3.3
+    image: traefik:3
     command:
       - --providers.docker=true
       - --providers.docker.endpoint=unix:///var/run/docker.sock
@@ -30,19 +30,19 @@ services:
     image: nginx
     labels:
       traefik.host: site2
-      traefik.http.services.site1.loadbalancer.server.port: 80
+      traefik.http.services.site2.loadbalancer.server.port: 80
 
   traefik-docker-portal:
     build:
       context: .
     environment:
+      TRAEFIK_API_URL: http://traefik:8080
+      PAGE_HEADING: Container Service Portal 🚀
       DOMAIN_PREFIX: example.com
     ports:
       - 5001:5001
     networks:
       - proxy
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
     labels:
       traefik.host: portal
       traefik.http.services.portal.loadbalancer.server.port: 5001

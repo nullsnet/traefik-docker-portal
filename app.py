@@ -1,84 +1,125 @@
 import os
 import re
-from typing import Optional
-import docker
 import logging
-from flask import Flask, render_template
+import requests
+from flask import Flask, render_template, jsonify
 
 PORT = int(os.environ.get('PORTAL_PORT', 5001))
-DOMAIN_SUFFIX = os.environ.get('DOMAIN_SUFFIX', 'example.com')
-PAGE_TITLE = os.environ.get('PAGE_TITLE', 'Docker Container Portal')
-PAGE_HEADING = os.environ.get('PAGE_HEADING', 'Container Service Portal 🚀')
+TRAEFIK_API_URL = os.environ.get('TRAEFIK_API_URL', 'http://traefik:8080')
+DOMAIN_SUFFIX = os.environ.get('DOMAIN_SUFFIX', '')
+PAGE_TITLE = os.environ.get('PAGE_TITLE', 'Traefik Service Portal')
+PAGE_HEADING = os.environ.get('PAGE_HEADING', 'Service Portal 🚀')
 LINK_TARGET = os.environ.get('LINK_TARGET', '_self')
 
 logging.basicConfig(level=os.environ.get('LOG_LEVEL', 'INFO').upper())
 app = Flask(__name__)
 
-try:
-    client = docker.from_env()
-    client.ping()
-    logging.info("Successfully connected to Docker daemon.")
-except docker.errors.DockerException:
-    client = None
-    logging.error(
-        "Could not connect to Docker daemon. Is it running and is the socket accessible?")
+
+def extract_hosts_from_rule(rule: str) -> list[str]:
+    hosts = re.findall(r'Host\(`([^`]+)`\)', rule)
+    return hosts
 
 
-def extract_hostname_from_rule(rule: str) -> str | None:
-    match = re.search(r'Host\(`([^`]+)`\)', rule)
-    return match.group(1) if match else None
+def build_urls(hosts: list[str]) -> list[str]:
+    urls = []
+    for host in hosts:
+        if host.startswith('.'):
+            continue
+        if DOMAIN_SUFFIX and not host.startswith('localhost'):
+            suffix = f'.{DOMAIN_SUFFIX}'
+            if not host.endswith(suffix):
+                first_dot = host.find('.')
+                if first_dot > 0:
+                    host = host[:first_dot] + suffix
+        scheme = 'https' if '.' in host or host.startswith('localhost') else 'http'
+        urls.append(f'{scheme}://{host}')
+    return urls
 
 
-def get_services() -> tuple[list[dict[str, str]], str | None]:
-    services: list[dict[str, str]] = []
-    error_message: Optional[str] = None
+INTERNAL_PROVIDERS = {'internal'}
+INTERNAL_SERVICE_PREFIXES = ('api@', 'dashboard@')
 
-    if not client:
-        return [], "Docker daemon is not available."
 
+def is_internal_router(data: dict) -> bool:
+    if data.get('provider', '') in INTERNAL_PROVIDERS:
+        return True
+    service = data.get('service', '')
+    for prefix in INTERNAL_SERVICE_PREFIXES:
+        if service.startswith(prefix):
+            return True
+    return False
+
+
+def get_services():
     try:
-        for container in client.containers.list():
-            hostname: Optional[str] = None
+        resp = requests.get(f'{TRAEFIK_API_URL}/api/http/routers', timeout=5)
+        resp.raise_for_status()
+        router_data = resp.json()
+    except requests.RequestException as e:
+        logging.error(f'Failed to fetch routers: {e}')
+        return [], f'Could not connect to Traefik API: {e}'
 
-            # Traefik v1 の 'traefik.host' ラベル
-            if 'traefik.host' in container.labels:
-                hostname = container.labels.get('traefik.host')
-            # Traefik v2+ のルーティングルール
-            else:
-                for key, value in container.labels.items():
-                    if key.startswith('traefik.http.routers.') and key.endswith('.rule'):
-                        hostname = extract_hostname_from_rule(value)
-                        if hostname:
-                            break
+    services_map = {}
+    for data in router_data:
+        if is_internal_router(data):
+            continue
 
-            if hostname:
-                url = f"https://{hostname}" if '.' in hostname else f"https://{hostname}.{DOMAIN_SUFFIX}"
-                service_name = container.labels.get(
-                    'com.docker.compose.service', container.name)
-                services.append({'name': service_name, 'url': url})
+        hosts = extract_hosts_from_rule(data.get('rule', ''))
+        urls = build_urls(hosts)
+        service_name = data.get('service', 'N/A')
 
-    except docker.errors.DockerException as e:
-        error_message = f"An error occurred while communicating with Docker: {e}"
-        logging.error(error_message)
+        if service_name not in services_map:
+            services_map[service_name] = {
+                'name': service_name,
+                'urls': urls,
+                'status': data.get('status', 'unknown'),
+                'provider': data.get('provider', 'N/A'),
+            }
+        else:
+            existing = services_map[service_name]
+            for u in urls:
+                if u not in existing['urls']:
+                    existing['urls'].append(u)
 
-    return sorted(services, key=lambda x: x['name']), error_message
+    result = [s for s in services_map.values() if s['urls']]
+    result.sort(key=lambda x: x['name'])
+    return result, None
 
 
 @app.route('/')
 def index():
-    services, error = get_services()
-    return render_template('index.html', title=PAGE_TITLE, heading=PAGE_HEADING, services=services, domain=DOMAIN_SUFFIX, error=error, link_target=LINK_TARGET)
+    services_list, error = get_services()
+
+    return render_template(
+        'index.html',
+        title=PAGE_TITLE,
+        heading=PAGE_HEADING,
+        routers=services_list,
+        error=error,
+        link_target=LINK_TARGET,
+    )
+
+
+@app.route('/api/services')
+def api_services():
+    services_list, error = get_services()
+    if error:
+        return jsonify({'error': error}), 500
+    return jsonify(services_list)
 
 
 if __name__ == '__main__':
-    initial_services, err = get_services()
-    if err:
-        logging.warning(f"Could not fetch initial services: {err}")
-    elif initial_services:
-        logging.info("Discovered Services on Startup:")
-        for service in initial_services:
-            logging.info(f" - {service['name']} -> {service['url']}")
+    logging.info(f'Traefik API URL: {TRAEFIK_API_URL}')
+    logging.info(f'Portal port: {PORT}')
+
+    services, error = get_services()
+    if error:
+        logging.warning(f'Could not fetch initial data: {error}')
     else:
-        logging.info("No services with 'traefik' labels found on startup.")
+        enabled = sum(1 for s in services if s['status'] == 'enabled')
+        logging.info(f'Discovered {len(services)} services ({enabled} enabled):')
+        for svc in services:
+            urls_str = ', '.join(svc['urls']) if svc['urls'] else '(no URL)'
+            logging.info(f'  [{svc["status"]}] {svc["name"]} -> {urls_str}')
 
     app.run(host='0.0.0.0', port=PORT)
