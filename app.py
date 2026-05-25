@@ -1,8 +1,9 @@
 import os
 import re
 import logging
+import json
 import requests
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, make_response
 
 PORT = int(os.environ.get('PORTAL_PORT', 5001))
 TRAEFIK_API_URL = os.environ.get('TRAEFIK_API_URL', 'http://traefik:8080')
@@ -13,6 +14,13 @@ LINK_TARGET = os.environ.get('LINK_TARGET', '_self')
 
 logging.basicConfig(level=os.environ.get('LOG_LEVEL', 'INFO').upper())
 app = Flask(__name__)
+
+
+@app.route('/static/manifest.json')
+def manifest():
+    resp = make_response(render_template('manifest_body.json', title=PAGE_TITLE, heading=PAGE_HEADING))
+    resp.mimetype = 'application/json'
+    return resp
 
 
 def extract_hosts_from_rule(rule: str) -> list[str]:
