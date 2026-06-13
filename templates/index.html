@@ -40,7 +40,7 @@
                             <div class="d-flex justify-content-between align-items-center">
                                 <div class="d-flex align-items-center gap-2">
                                     {% if svc.favicon_path %}
-                                    <img src="{{ svc.urls[0] }}{{ svc.favicon_path if svc.favicon_path.startswith('/') else '/' + svc.favicon_path }}" width="20" height="20" alt="" loading="lazy" onerror="this.style.display='none'" />
+                                    <img src="/favicon/{{ svc.name }}" width="20" height="20" alt="" loading="lazy" onerror="this.style.display='none'" />
                                     {% endif %}
                                     <h5 class="card-title mb-0">{{ svc.name }}</h5>
                                 </div>
