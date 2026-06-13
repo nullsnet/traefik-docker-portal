@@ -65,8 +65,16 @@ def fetch_favicon_from_url(base_url: str) -> str | None:
             if match:
                 path = match.group(1)
                 # Normalize path: remove leading ./ and ensure it starts with /
-                path = path.lstrip('./')
-                return '/' + path
+                path = '/' + path.lstrip('./')
+                # Verify the favicon exists at this path
+                fav_resp = requests.get(f'{base_url}{path}', timeout=5, headers={'User-Agent': 'Mozilla/5.0'})
+                if fav_resp.status_code == 200 and len(fav_resp.content) > 0:
+                    return path
+                # Some services (e.g., jellyfin) serve static files under /web/
+                alt_path = '/web' + path
+                alt_resp = requests.get(f'{base_url}{alt_path}', timeout=5, headers={'User-Agent': 'Mozilla/5.0'})
+                if alt_resp.status_code == 200 and len(alt_resp.content) > 0:
+                    return alt_path
     except requests.RequestException:
         pass
     # Fallback: try /favicon.ico directly
