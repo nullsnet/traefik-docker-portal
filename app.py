@@ -46,6 +46,26 @@ def build_urls(hosts: list[str]) -> list[str]:
 
 INTERNAL_PROVIDERS = {'internal'}
 INTERNAL_SERVICE_PREFIXES = ('api@', 'dashboard@')
+FAVICON_PATTERN = re.compile(
+    r'<link[^>]*rel=(?:\"|\'|)(?:icon|shortcut\s*icon)[^>]*href=(?:\"|\'|)([^\"\'\s>]+)',
+    re.IGNORECASE,
+)
+
+
+def fetch_favicon_from_url(base_url: str) -> str | None:
+    """Fetch HTML from internal URL and extract favicon path, then return public URL."""
+    try:
+        resp = requests.get(base_url, timeout=5, headers={'User-Agent': 'Mozilla/5.0'})
+        if resp.status_code != 200:
+            return None
+        match = FAVICON_PATTERN.search(resp.text)
+        if match:
+            path = match.group(1)
+            # Return just the path - template will construct full URL
+            return path
+    except requests.RequestException:
+        pass
+    return None
 
 
 def is_internal_router(data: dict) -> bool:
@@ -60,12 +80,30 @@ def is_internal_router(data: dict) -> bool:
 
 def get_services():
     try:
-        resp = requests.get(f'{TRAEFIK_API_URL}/api/http/routers', timeout=5)
-        resp.raise_for_status()
-        router_data = resp.json()
+        routers_resp = requests.get(f'{TRAEFIK_API_URL}/api/http/routers', timeout=5)
+        routers_resp.raise_for_status()
+        router_data = routers_resp.json()
+        services_resp = requests.get(f'{TRAEFIK_API_URL}/api/http/services', timeout=5)
+        services_resp.raise_for_status()
+        services_data = services_resp.json()
     except requests.RequestException as e:
-        logging.error(f'Failed to fetch routers: {e}')
+        logging.error(f'Failed to fetch from Traefik API: {e}')
         return [], f'Could not connect to Traefik API: {e}'
+
+    # Build service name -> internal URL mapping
+    # Router service names are like "authelia" but services API has "authelia@docker"
+    internal_urls = {}
+    for svc in services_data:
+        lb = svc.get('loadBalancer', {})
+        servers = lb.get('servers', [])
+        if servers:
+            name = svc['name']
+            # Store with @docker suffix
+            internal_urls[name] = servers[0]['url']
+            # Also store without suffix for matching
+            if '@' in name:
+                base_name = name.split('@')[0]
+                internal_urls[base_name] = servers[0]['url']
 
     services_map = {}
     for data in router_data:
@@ -82,12 +120,21 @@ def get_services():
                 'urls': urls,
                 'status': data.get('status', 'unknown'),
                 'provider': data.get('provider', 'N/A'),
+                'favicon_path': None,
             }
         else:
             existing = services_map[service_name]
             for u in urls:
                 if u not in existing['urls']:
                     existing['urls'].append(u)
+
+    # Fetch favicons from internal URLs
+    for svc_name, svc_info in services_map.items():
+        internal_url = internal_urls.get(svc_name)
+        if internal_url:
+            favicon_path = fetch_favicon_from_url(internal_url)
+            if favicon_path:
+                svc_info['favicon_path'] = favicon_path
 
     result = [s for s in services_map.values() if s['urls']]
     result.sort(key=lambda x: x['name'])
