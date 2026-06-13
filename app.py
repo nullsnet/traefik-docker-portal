@@ -54,6 +54,8 @@ FAVICON_PATTERN = re.compile(
     r'<link[^>]*rel=(?:\"|\'|)(?:icon|shortcut\s*icon)[^>]*href=(?:\"|\'|)([^\"\'\s>]+)',
     re.IGNORECASE,
 )
+PROVIDER_ICONS = {'docker': '🐳', 'file': '📄'}
+DEFAULT_PROVIDER_ICON = '🐋'
 
 
 def fetch_favicon_from_url(base_url: str) -> str | None:
@@ -132,11 +134,13 @@ def get_services():
         service_name = data.get('service', 'N/A')
 
         if service_name not in services_map:
+            provider = data.get('provider', 'N/A')
             services_map[service_name] = {
                 'name': service_name,
                 'urls': urls,
                 'status': data.get('status', 'unknown'),
-                'provider': data.get('provider', 'N/A'),
+                'provider': provider,
+                'provider_icon': PROVIDER_ICONS.get(provider.split('@')[0], DEFAULT_PROVIDER_ICON),
                 'favicon_path': None,
             }
         else:

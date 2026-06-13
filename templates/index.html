@@ -40,11 +40,11 @@
                             <div class="d-flex justify-content-between align-items-center">
                                 <div class="d-flex align-items-center gap-2">
                                     {% if svc.favicon_path %}
-                                    <img src="/favicon/{{ svc.name }}" width="20" height="20" alt="" loading="lazy" onerror="this.style.display='none'" />
+                                    <img src="/favicon/{{ svc.name }}" width="28" height="28" alt="" loading="lazy" onerror="this.style.display='none'" />
                                     {% endif %}
                                     <h5 class="card-title mb-0">{{ svc.name }}</h5>
                                 </div>
-                                <span class="fs-4">{% if svc.provider == 'docker' %}🐳{% elif svc.provider == 'file' %}📄{% else %}🐋{% endif %}</span>
+                                <span style="font-size: 1rem;">{{ svc.provider_icon }}</span>
                             </div>
                         </div>
                     </div>
