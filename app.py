@@ -12,7 +12,6 @@ PAGE_TITLE = os.environ.get('PAGE_TITLE', 'Traefik Service Portal')
 PAGE_HEADING = os.environ.get('PAGE_HEADING', 'Service Portal 🚀')
 LINK_TARGET = os.environ.get('LINK_TARGET', '_self')
 STATIC_SERVICES_FILE = os.environ.get('STATIC_SERVICES_FILE', '/etc/services.json')
-STATIC_SECTION_TITLE = os.environ.get('STATIC_SECTION_TITLE', 'Other Services')
 
 logging.basicConfig(level=os.environ.get('LOG_LEVEL', 'INFO').upper())
 app = Flask(__name__)
@@ -176,11 +175,19 @@ def get_static_services() -> list[dict]:
             logging.warning('Static services file is not a JSON array')
             return []
         result = []
-        for item in data:
-            name = item.get('name', '')
-            url = item.get('url', '')
-            if name and url:
-                result.append({'name': name, 'url': url})
+        for section in data:
+            title = section.get('title', '')
+            services = section.get('services', [])
+            if not title or not services:
+                continue
+            filtered = []
+            for item in services:
+                name = item.get('name', '')
+                url = item.get('url', '')
+                if name and url:
+                    filtered.append({'name': name, 'url': url})
+            if filtered:
+                result.append({'title': title, 'services': filtered})
         return result
     except (json.JSONDecodeError, OSError) as e:
         logging.warning(f'Failed to read static services file: {e}')
@@ -200,7 +207,6 @@ def index():
         error=error,
         link_target=LINK_TARGET,
         static_services=static_services,
-        static_section_title=STATIC_SECTION_TITLE,
     )
 
 
