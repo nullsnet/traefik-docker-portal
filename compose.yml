@@ -7,6 +7,10 @@ services:
       TRAEFIK_API_URL: http://traefik:8080
       DOMAIN_SUFFIX: app.nul-ls.net
       PAGE_HEADING: docker-lan - Container Service Portal 🚀
+      STATIC_SERVICES_FILE: /etc/services.json
+      STATIC_SECTION_TITLE: Other Services
+    volumes:
+      - ./services.json:/etc/services.json:ro
     ports:
       - 5001:5001
     networks:

@@ -11,6 +11,8 @@ DOMAIN_SUFFIX = os.environ.get('DOMAIN_SUFFIX', '')
 PAGE_TITLE = os.environ.get('PAGE_TITLE', 'Traefik Service Portal')
 PAGE_HEADING = os.environ.get('PAGE_HEADING', 'Service Portal 🚀')
 LINK_TARGET = os.environ.get('LINK_TARGET', '_self')
+STATIC_SERVICES_FILE = os.environ.get('STATIC_SERVICES_FILE', '/etc/services.json')
+STATIC_SECTION_TITLE = os.environ.get('STATIC_SECTION_TITLE', 'Other Services')
 
 logging.basicConfig(level=os.environ.get('LOG_LEVEL', 'INFO').upper())
 app = Flask(__name__)
@@ -164,9 +166,31 @@ def get_services():
     return result, None
 
 
+def get_static_services() -> list[dict]:
+    if not os.path.isfile(STATIC_SERVICES_FILE):
+        return []
+    try:
+        with open(STATIC_SERVICES_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        if not isinstance(data, list):
+            logging.warning('Static services file is not a JSON array')
+            return []
+        result = []
+        for item in data:
+            name = item.get('name', '')
+            url = item.get('url', '')
+            if name and url:
+                result.append({'name': name, 'url': url})
+        return result
+    except (json.JSONDecodeError, OSError) as e:
+        logging.warning(f'Failed to read static services file: {e}')
+        return []
+
+
 @app.route('/')
 def index():
     services_list, error = get_services()
+    static_services = get_static_services()
 
     return render_template(
         'index.html',
@@ -175,6 +199,8 @@ def index():
         routers=services_list,
         error=error,
         link_target=LINK_TARGET,
+        static_services=static_services,
+        static_section_title=STATIC_SECTION_TITLE,
     )
 
 
@@ -184,6 +210,11 @@ def api_services():
     if error:
         return jsonify({'error': error}), 500
     return jsonify(services_list)
+
+
+@app.route('/api/static-services')
+def api_static_services():
+    return jsonify(get_static_services())
 
 
 @app.route('/favicon/<service_name>')
