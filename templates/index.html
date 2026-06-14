@@ -1,71 +1,66 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="ja" data-bs-theme="auto">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="theme-color" content="#0d6efd">
-    <title>{{ title }}</title>
-    <link rel="manifest" href="/static/manifest.json?v=2">
-    <link rel="apple-touch-icon" href="/static/icon-192.png">
-    <link rel="icon" type="image/png" sizes="192x192" href="/static/icon-192.png">
-    <link rel="icon" type="image/png" sizes="512x512" href="/static/icon-512.png">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#0d6efd">
+  <meta name="color-scheme" content="dark light">
+  <title>{{ title }}</title>
+  <link rel="manifest" href="/static/manifest.json?v=2">
+  <link rel="apple-touch-icon" href="/static/icon-192.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="/static/icon-512.png">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="/static/styles.css" rel="stylesheet">
 </head>
 
-<body class="bg-light">
-    <nav class="navbar navbar-light bg-white border-bottom">
-        <div class="container">
-            <span class="navbar-brand mb-0 h1">{{ heading }}</span>
-        </div>
-    </nav>
-
-    {% if error %}
-    <div class="container mt-3">
-        <div class="alert alert-danger" role="alert">⚠ {{ error }}</div>
+<body class="bg-body">
+  <nav class="navbar navbar-expand-lg bg-body border-bottom">
+    <div class="container">
+      <span class="navbar-brand mb-0 h1">{{ heading }}</span>
+      <button class="btn btn-sm btn-outline-secondary" id="themeToggle" title="テーマ切替">🌓</button>
     </div>
-    {% endif %}
+  </nav>
 
-    <div class="container py-4">
-        {% if routers %}
-        <div class="row g-3">
-            {% for svc in routers %}
-            <div class="col-12 col-sm-6 col-lg-4">
-                <a href="{{ svc.urls[0] }}" target="{{ link_target }}" class="text-decoration-none">
-                  <div class="card h-100 shadow-sm">
-                        <div class="card-body d-flex flex-column">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div class="d-flex align-items-center gap-2">
-                                    {% if svc.favicon_path %}
-                                    <img src="/favicon/{{ svc.name }}" width="28" height="28" alt="" loading="lazy" onerror="this.style.display='none'" />
-                                    {% endif %}
-                                    <h5 class="card-title mb-0">{{ svc.name }}</h5>
-                                </div>
-                                <span style="font-size: 1rem;">{{ svc.provider_icon }}</span>
-                            </div>
-                        </div>
-                    </div>
-                </a>
+  {% if error %}
+  <div class="container mt-3">
+    <div class="alert alert-danger" role="alert">⚠ {{ error }}</div>
+  </div>
+  {% endif %}
+
+  <div class="container py-4">
+    {% if routers %}
+    <div class="row g-3">
+      {% for svc in routers %}
+      <div class="col-12 col-sm-6 col-lg-4">
+        <a href="{{ svc.urls[0] }}" target="{{ link_target }}" class="text-decoration-none text-body">
+          <div class="card h-100 shadow-sm">
+            <div class="card-body d-flex flex-column">
+              <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center gap-2">
+                  {% if svc.favicon_path %}
+                  <img src="/favicon/{{ svc.name }}" width="28" height="28" alt="" loading="lazy"
+                    onerror="this.style.display='none'" />
+                  {% endif %}
+                  <h5 class="card-title mb-0">{{ svc.name }}</h5>
+                </div>
+                <span class="provider-icon">{{ svc.provider_icon }}</span>
+              </div>
             </div>
-            {% endfor %}
-        </div>
-        {% else %}
-        <p class="text-muted text-center">No services found.</p>
-        {% endif %}
+          </div>
+        </a>
+      </div>
+      {% endfor %}
     </div>
+    {% else %}
+    <p class="text-muted text-center">No services found.</p>
+    {% endif %}
+  </div>
 
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/static/sw.js')
-                    .then(reg => console.log('SW registered:', reg.scope))
-                    .catch(err => console.log('SW registration failed:', err));
-            });
-        }
-    </script>
+  <script src="/static/app.js"></script>
 </body>
 
 </html>

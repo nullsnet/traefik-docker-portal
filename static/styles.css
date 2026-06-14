@@ -1,0 +1,11 @@
+:root {
+  --bs-body-bg: var(--bs-body-bg, #fff);
+}
+
+[data-bs-theme="dark"] {
+  color-scheme: dark;
+}
+
+.provider-icon {
+  font-size: 1rem;
+}
