@@ -67,7 +67,13 @@
         <a href="{{ svc.url }}" target="{{ link_target }}" class="text-decoration-none text-body">
           <div class="card h-100 shadow-sm">
             <div class="card-body d-flex flex-column">
-              <h5 class="card-title mb-0">{{ svc.name }}</h5>
+              <div class="d-flex align-items-center gap-2">
+                {% if svc.favicon %}
+                <img src="/favicon-url?url={{ svc.url }}&path={{ svc.favicon }}" width="28" height="28" alt="" loading="lazy"
+                  onerror="this.style.display='none'" />
+                {% endif %}
+                <h5 class="card-title mb-0">{{ svc.name }}</h5>
+              </div>
             </div>
           </div>
         </a>

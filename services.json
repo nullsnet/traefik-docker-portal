@@ -4,7 +4,8 @@
     "services": [
       {
         "name": "Proxmox #1",
-        "url": "https://192.168.0.2"
+        "url": "https://192.168.0.6:8006",
+        "favicon": "/favicon.ico"
       }
     ]
   },
@@ -13,7 +14,8 @@
     "services": [
       {
         "name": "OPNsense",
-        "url": "https://192.168.0.1"
+        "url": "https://192.168.0.1",
+        "favicon": "/ui/themes/opnsense-dark/build/images/favicon.png"
       }
     ]
   }

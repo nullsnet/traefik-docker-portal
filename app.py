@@ -66,7 +66,7 @@ def fetch_favicon_from_url(base_url: str) -> str | None:
         if resp.status_code == 200:
             match = FAVICON_PATTERN.search(resp.text)
             if match:
-                path = match.group(1)
+                path = match.group(1) or match.group(2)
                 # Normalize path: remove leading ./ and ensure it starts with /
                 path = '/' + path.lstrip('./')
                 # Verify the favicon exists at this path
@@ -165,6 +165,32 @@ def get_services():
     return result, None
 
 
+def fetch_favicon_from_external_url(base_url: str) -> str | None:
+    """Try to extract favicon path from an external URL's HTML."""
+    try:
+        resp = requests.get(base_url, timeout=5, headers={'User-Agent': 'Mozilla/5.0'}, allow_redirects=True, verify=False)
+        if resp.status_code == 200:
+            match = FAVICON_PATTERN.search(resp.text)
+            if match:
+                path = match.group(1) or match.group(2)
+                # If it's an absolute URL, return as-is
+                if path.startswith('http://') or path.startswith('https://'):
+                    return path
+                # Normalize relative path
+                path = '/' + path.lstrip('./')
+                return path
+    except requests.RequestException:
+        pass
+    # Fallback: try /favicon.ico directly
+    try:
+        favicon_resp = requests.get(f'{base_url}/favicon.ico', timeout=5, headers={'User-Agent': 'Mozilla/5.0'}, verify=False)
+        if favicon_resp.status_code == 200 and len(favicon_resp.content) > 0:
+            return '/favicon.ico'
+    except requests.RequestException:
+        pass
+    return None
+
+
 def get_static_services() -> list[dict]:
     if not os.path.isfile(STATIC_SERVICES_FILE):
         return []
@@ -184,8 +210,14 @@ def get_static_services() -> list[dict]:
             for item in services:
                 name = item.get('name', '')
                 url = item.get('url', '')
+                favicon = item.get('favicon', None)
                 if name and url:
-                    filtered.append({'name': name, 'url': url})
+                    # Auto-detect favicon if not explicitly set
+                    if not favicon:
+                        detected = fetch_favicon_from_external_url(url)
+                        if detected:
+                            favicon = detected
+                    filtered.append({'name': name, 'url': url, 'favicon': favicon})
             if filtered:
                 result.append({'title': title, 'services': filtered})
         return result
@@ -249,6 +281,38 @@ def proxy_favicon(service_name: str):
             })
     except requests.RequestException as e:
         logging.warning(f'Failed to proxy favicon for {service_name}: {e}')
+    return Response('Not found', status=404)
+
+
+@app.route('/favicon-url')
+def proxy_favicon_url():
+    """Proxy favicon from an external static service URL."""
+    target_url = request.args.get('url', '')
+    favicon_path = request.args.get('path', '/favicon.ico')
+
+    if not target_url:
+        return Response('Missing url parameter', status=400)
+
+    # Build full favicon URL
+    if favicon_path.startswith('http://') or favicon_path.startswith('https://'):
+        full_url = favicon_path
+    else:
+        # Ensure clean URL joining
+        base = target_url.rstrip('/')
+        fav = favicon_path.lstrip('/')
+        full_url = f'{base}/{fav}'
+
+    try:
+        resp = requests.get(full_url, timeout=10, headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }, verify=False)
+        if resp.status_code == 200 and len(resp.content) > 0:
+            return Response(resp.content, status=200, headers={
+                'Content-Type': resp.headers.get('Content-Type', 'image/png'),
+                'Cache-Control': 'public, max-age=86400',
+            })
+    except requests.RequestException as e:
+        logging.warning(f'Failed to proxy favicon from {full_url}: {e}')
     return Response('Not found', status=404)
 
 
