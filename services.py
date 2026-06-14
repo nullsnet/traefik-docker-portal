@@ -1,9 +1,10 @@
 import os
 import json
 import logging
+import socket
 import requests
 from config import (
-    TRAEFIK_API_URL, INTERNAL_PROVIDERS, INTERNAL_SERVICE_PREFIXES,
+    PORT, TRAEFIK_API_URL, INTERNAL_PROVIDERS, INTERNAL_SERVICE_PREFIXES,
     PROVIDER_ICONS, DEFAULT_PROVIDER_ICON, DOMAIN_SUFFIX, STATIC_SERVICES_FILE,
 )
 from favicon import FaviconService
@@ -67,16 +68,23 @@ def get_services(favicon_svc: FaviconService) -> tuple[list[dict], str | None]:
         logger.error(f'Failed to fetch from Traefik API: {e}')
         return [], f'Could not connect to Traefik API: {e}'
 
+    own_ip = socket.gethostbyname(socket.gethostname())
+    own_url_suffix = f'{own_ip}:{PORT}'
+
     internal_urls: dict[str, str] = {}
     for svc in services_data:
         lb = svc.get('loadBalancer', {})
         servers = lb.get('servers', [])
         if servers:
             name = svc['name']
-            internal_urls[name] = servers[0]['url']
+            url = servers[0]['url']
+            # 自身へのURLは登録しない（favicon取得でループするため）
+            if own_url_suffix in url:
+                continue
+            internal_urls[name] = url
             if '@' in name:
                 base_name = name.split('@')[0]
-                internal_urls[base_name] = servers[0]['url']
+                internal_urls[base_name] = url
 
     favicon_svc.set_internal_urls(internal_urls)
 
@@ -110,7 +118,7 @@ def get_services(favicon_svc: FaviconService) -> tuple[list[dict], str | None]:
         if path and svc_name in services_map:
             services_map[svc_name]['favicon_path'] = path
 
-    result = [s for s in services_map.values() if s['urls']]
+    result = [s for s in services_map.values() if s['urls'] and s['name'] in internal_urls]
     result.sort(key=lambda x: x['name'])
     return result, None
 

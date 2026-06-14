@@ -1,5 +1,6 @@
 services:
   traefik-docker-portal:
+    # image: ghcr.io/nullsnet/traefik-docker-portal:latest
     build:
       context: .
     environment:
