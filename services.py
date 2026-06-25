@@ -113,8 +113,8 @@ def get_services(favicon_svc: FaviconService) -> tuple[list[dict], str | None]:
                 if u not in existing['urls']:
                     existing['urls'].append(u)
 
-    favicon_results = favicon_svc.fetch_for_services(list(services_map.keys()))
-    for svc_name, path in favicon_results.items():
+    favicon_cache = favicon_svc.fetch_for_services_async(list(services_map.keys()))
+    for svc_name, path in favicon_cache.items():
         if path and svc_name in services_map:
             services_map[svc_name]['favicon_path'] = path
 
@@ -144,10 +144,6 @@ def get_static_services(favicon_svc: FaviconService) -> list[dict]:
                 url = item.get('url', '')
                 favicon = item.get('favicon', None)
                 if name and url:
-                    if not favicon:
-                        detected = favicon_svc.fetch_for_external_url(url)
-                        if detected:
-                            favicon = detected
                     filtered.append({'name': name, 'url': url, 'favicon': favicon})
             if filtered:
                 result.append({'title': title, 'services': filtered})

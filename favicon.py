@@ -1,4 +1,5 @@
 import re
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
 
@@ -14,6 +15,8 @@ class FaviconService:
         self.max_workers = max_workers
         self._internal_urls: dict[str, str] = {}
         self._favicon_paths: dict[str, str | None] = {}
+        self._background_executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix='favicon-bg')
+        self._lock = threading.Lock()
 
     def set_internal_urls(self, urls: dict[str, str]) -> None:
         self._internal_urls = urls
@@ -48,6 +51,28 @@ class FaviconService:
 
     def get_cached_path(self, service_name: str) -> str | None:
         return self._favicon_paths.get(service_name)
+
+    def fetch_for_services_async(self, service_names: list[str]) -> dict[str, str | None]:
+        current_cache = dict(self._favicon_paths)
+
+        def _background_fetch():
+            results = {}
+            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                futures = {
+                    executor.submit(self.fetch_for_service, name): name
+                    for name in service_names
+                }
+                for future in as_completed(futures):
+                    name = futures[future]
+                    try:
+                        results[name] = future.result()
+                    except Exception:
+                        results[name] = None
+            with self._lock:
+                self._favicon_paths.update(results)
+
+        self._background_executor.submit(_background_fetch)
+        return current_cache
 
     def _detect_from_html(self, base_url: str, verify=True) -> str | None:
         try:

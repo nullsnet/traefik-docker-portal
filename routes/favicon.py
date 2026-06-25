@@ -11,7 +11,7 @@ _CACHE_HEADERS = {
 
 def _proxy_response(url: str, verify=True) -> Response:
     try:
-        resp = requests.get(url, timeout=10, headers={'User-Agent': _USER_AGENT}, verify=verify)
+        resp = requests.get(url, timeout=2, headers={'User-Agent': _USER_AGENT}, verify=verify)
         if resp.status_code == 200 and len(resp.content) > 0:
             return Response(resp.content, status=200, headers={
                 'Content-Type': resp.headers.get('Content-Type', 'image/png'),
