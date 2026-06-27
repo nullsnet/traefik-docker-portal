@@ -6,6 +6,7 @@ import requests
 from config import (
     PORT, TRAEFIK_API_URL, INTERNAL_PROVIDERS, INTERNAL_SERVICE_PREFIXES,
     PROVIDER_ICONS, DEFAULT_PROVIDER_ICON, DOMAIN_SUFFIX, STATIC_SERVICES_FILE,
+    FAVICON_OVERRIDES_FILE,
 )
 from favicon import FaviconService
 
@@ -87,6 +88,16 @@ def get_services(favicon_svc: FaviconService) -> tuple[list[dict], str | None]:
                 internal_urls[base_name] = url
 
     favicon_svc.set_internal_urls(internal_urls)
+
+    # Load manual favicon overrides
+    if os.path.isfile(FAVICON_OVERRIDES_FILE):
+        try:
+            with open(FAVICON_OVERRIDES_FILE, 'r', encoding='utf-8') as f:
+                overrides = json.load(f)
+            if isinstance(overrides, dict):
+                favicon_svc.set_overrides(overrides)
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning(f'Failed to read favicon overrides file: {e}')
 
     services_map: dict[str, dict] = {}
     for data in router_data:

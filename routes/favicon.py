@@ -36,7 +36,23 @@ def proxy_favicon(service_name: str):
         return Response('Not found', status=404)
 
     fetch_path = favicon_path.split('?')[0]
-    return _proxy_response(f'{internal_url}/{fetch_path.lstrip("/")}')
+
+    # Try original URL first (static files at root)
+    resp = _proxy_response(f'{internal_url.rstrip("/")}{fetch_path}')
+    if resp.status_code == 200:
+        return resp
+
+    # Fall back to redirect-resolved URL (SPA with /web/ prefix etc.)
+    try:
+        resolved = requests.head(
+            internal_url, timeout=2, allow_redirects=True,
+            headers={'User-Agent': _USER_AGENT},
+        )
+        base = resolved.url.rstrip('/')
+    except requests.RequestException:
+        base = internal_url.rstrip('/')
+
+    return _proxy_response(f'{base}/{fetch_path.lstrip("/")}')
 
 
 @favicon_bp.route('/favicon-url')

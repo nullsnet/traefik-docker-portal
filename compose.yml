@@ -11,6 +11,7 @@ services:
       STATIC_SERVICES_FILE: /etc/services.json
     volumes:
       - ./services.json:/etc/services.json:ro
+      - ./favicon-overrides.json:/etc/favicon-overrides.json:ro
     ports:
       - 5001:5001
     networks:

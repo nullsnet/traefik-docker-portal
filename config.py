@@ -7,6 +7,7 @@ PAGE_TITLE = os.environ.get('PAGE_TITLE', 'Traefik Service Portal')
 PAGE_HEADING = os.environ.get('PAGE_HEADING', 'Service Portal 🚀')
 LINK_TARGET = os.environ.get('LINK_TARGET', '_self')
 STATIC_SERVICES_FILE = os.environ.get('STATIC_SERVICES_FILE', '/etc/services.json')
+FAVICON_OVERRIDES_FILE = os.environ.get('FAVICON_OVERRIDES_FILE', '/etc/favicon-overrides.json')
 
 INTERNAL_PROVIDERS = {'internal'}
 INTERNAL_SERVICE_PREFIXES = ('api@', 'dashboard@')
