@@ -16,6 +16,43 @@ _HREF_ATTR = re.compile(
     re.IGNORECASE,
 )
 
+_HTTP_HEADER = {'User-Agent': 'Mozilla/5.0'}
+
+
+def _resolve_url(base_url: str, path: str) -> str:
+    """Base URLとパスを結合。pathが絶対URLの場合はそのまま返す"""
+    if path.startswith('http://') or path.startswith('https://'):
+        return path
+    normalized = '/' + path.lstrip('./')
+    if not base_url:
+        return normalized
+    return f'{base_url.rstrip("/")}{normalized}'
+
+
+def _normalize_path(path: str) -> str:
+    return _resolve_url('', path)
+
+
+def _is_valid_favicon(resp: requests.Response) -> bool:
+    """レスポンスが有効なfaviconか判定（HTML/textをreject）"""
+    if resp.status_code != 200 or len(resp.content) == 0:
+        return False
+    ct = resp.headers.get('Content-Type', '')
+    return not ('text/html' in ct or 'text/plain' in ct)
+
+
+def _resolve_redirects(base_url: str, timeout: int, verify: bool) -> str:
+    """HEADリクエストでリダイレクト後の最終URLを解決"""
+    try:
+        r = requests.head(
+            base_url, timeout=timeout, allow_redirects=True,
+            headers=_HTTP_HEADER, verify=verify,
+        )
+        return r.url.rstrip('/')
+    except requests.RequestException:
+        return base_url.rstrip('/')
+
+
 def _parse_link_tags(html: str) -> list[dict]:
     results = []
     for tag_match in _LINK_TAG.finditer(html):
@@ -27,12 +64,6 @@ def _parse_link_tags(html: str) -> list[dict]:
             'href': href_m.group(1) if href_m else None,
         })
     return results
-
-
-def _normalize_path(path: str) -> str:
-    if path.startswith('http://') or path.startswith('https://'):
-        return path
-    return '/' + path.lstrip('./')
 
 
 class FaviconService:
@@ -67,25 +98,6 @@ class FaviconService:
             return None
         return self._detect_from_html(internal_url)
 
-    def fetch_for_services(self, service_names: list[str]) -> dict[str, str | None]:
-        results: dict[str, str | None] = {}
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            futures = {
-                executor.submit(self.fetch_for_service, name): name
-                for name in service_names
-            }
-            for future in as_completed(futures):
-                name = futures[future]
-                try:
-                    results[name] = future.result()
-                except Exception:
-                    results[name] = None
-        self._favicon_paths = results
-        return results
-
-    def fetch_for_external_url(self, base_url: str) -> str | None:
-        return self._detect_from_html(base_url, verify=False)
-
     def get_cached_path(self, service_name: str) -> str | None:
         return self._favicon_paths.get(service_name)
 
@@ -113,20 +125,11 @@ class FaviconService:
 
     def _try_path(self, base_url: str, path: str, verify: bool) -> bool:
         try:
-            if path.startswith('http://') or path.startswith('https://'):
-                url = path
-            else:
-                url = f'{base_url.rstrip("/")}{path}'
             resp = requests.get(
-                url, timeout=self.timeout,
-                headers={'User-Agent': 'Mozilla/5.0'},
-                verify=verify,
+                _resolve_url(base_url, path), timeout=self.timeout,
+                headers=_HTTP_HEADER, verify=verify,
             )
-            if resp.status_code != 200 or len(resp.content) == 0:
-                return False
-            ct = resp.headers.get('Content-Type', '')
-            # Reject HTML/text responses (SPA catch-all), accept everything else
-            return not ('text/html' in ct or 'text/plain' in ct)
+            return _is_valid_favicon(resp)
         except requests.RequestException:
             return False
 
@@ -138,14 +141,13 @@ class FaviconService:
         try:
             html_resp = requests.get(
                 base_url, timeout=self.timeout, allow_redirects=True,
-                headers={'User-Agent': 'Mozilla/5.0'},
-                verify=verify,
+                headers=_HTTP_HEADER, verify=verify,
             )
         except requests.RequestException:
             pass
 
         if html_resp and html_resp.status_code == 200:
-            resolved_url = html_resp.url.rstrip('/')
+            resolved_url = _resolve_redirects(base_url, self.timeout, verify)
 
             links = _parse_link_tags(html_resp.text)
             for link in links:

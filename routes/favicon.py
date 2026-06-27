@@ -1,9 +1,11 @@
 import logging
 from flask import Blueprint, request, Response
 import requests
+from favicon import _resolve_url, _resolve_redirects
 
 favicon_bp = Blueprint('favicon', __name__)
 _USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+_TIMEOUT = 2
 _CACHE_HEADERS = {
     'Cache-Control': 'public, max-age=86400',
 }
@@ -11,7 +13,7 @@ _CACHE_HEADERS = {
 
 def _proxy_response(url: str, verify=True) -> Response:
     try:
-        resp = requests.get(url, timeout=2, headers={'User-Agent': _USER_AGENT}, verify=verify)
+        resp = requests.get(url, timeout=_TIMEOUT, headers={'User-Agent': _USER_AGENT}, verify=verify)
         if resp.status_code == 200 and len(resp.content) > 0:
             return Response(resp.content, status=200, headers={
                 'Content-Type': resp.headers.get('Content-Type', 'image/png'),
@@ -38,21 +40,13 @@ def proxy_favicon(service_name: str):
     fetch_path = favicon_path.split('?')[0]
 
     # Try original URL first (static files at root)
-    resp = _proxy_response(f'{internal_url.rstrip("/")}{fetch_path}')
+    resp = _proxy_response(_resolve_url(internal_url, fetch_path))
     if resp.status_code == 200:
         return resp
 
     # Fall back to redirect-resolved URL (SPA with /web/ prefix etc.)
-    try:
-        resolved = requests.head(
-            internal_url, timeout=2, allow_redirects=True,
-            headers={'User-Agent': _USER_AGENT},
-        )
-        base = resolved.url.rstrip('/')
-    except requests.RequestException:
-        base = internal_url.rstrip('/')
-
-    return _proxy_response(f'{base}/{fetch_path.lstrip("/")}')
+    base = _resolve_redirects(internal_url, _TIMEOUT, True)
+    return _proxy_response(_resolve_url(base, fetch_path))
 
 
 @favicon_bp.route('/favicon-url')
@@ -63,11 +57,4 @@ def proxy_favicon_url():
     if not target_url:
         return Response('Missing url parameter', status=400)
 
-    if favicon_path.startswith('http://') or favicon_path.startswith('https://'):
-        full_url = favicon_path
-    else:
-        base = target_url.rstrip('/')
-        fav = favicon_path.lstrip('/')
-        full_url = f'{base}/{fav}'
-
-    return _proxy_response(full_url, verify=False)
+    return _proxy_response(_resolve_url(target_url, favicon_path), verify=False)
